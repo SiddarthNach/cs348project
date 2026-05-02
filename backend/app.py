@@ -248,21 +248,29 @@ def create_workout():
     if not user_id or not db.session.get(User, user_id):
         return jsonify({"error": "Valid user is required"}), 400
 
-    workout = Workout(user_id=user_id, date=workout_date, notes=data.get("notes", ""))
-    db.session.add(workout)
-    db.session.flush()
+    # Transaction: the parent Workout row and all its WorkoutExercise children
+    # must either commit together or roll back together. A partial commit would
+    # leave a workout with missing exercises.
+    try:
+        workout = Workout(user_id=user_id, date=workout_date, notes=data.get("notes", ""))
+        db.session.add(workout)
+        db.session.flush()
 
-    for ex_data in data.get("exercises", []):
-        we = WorkoutExercise(
-            workout_id=workout.workout_id,
-            exercise_id=ex_data["exercise_id"],
-            sets=ex_data["sets"],
-            reps=ex_data["reps"],
-            weight=ex_data["weight"],
-        )
-        db.session.add(we)
+        for ex_data in data.get("exercises", []):
+            we = WorkoutExercise(
+                workout_id=workout.workout_id,
+                exercise_id=ex_data["exercise_id"],
+                sets=ex_data["sets"],
+                reps=ex_data["reps"],
+                weight=ex_data["weight"],
+            )
+            db.session.add(we)
 
-    db.session.commit()
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Failed to create workout: {str(e)}"}), 400
+
     return jsonify(workout.to_dict()), 201
 
 
@@ -288,19 +296,27 @@ def update_workout(workout_id):
     if "notes" in data:
         workout.notes = data["notes"]
 
-    if "exercises" in data:
-        WorkoutExercise.query.filter_by(workout_id=workout_id).delete()
-        for ex_data in data["exercises"]:
-            we = WorkoutExercise(
-                workout_id=workout_id,
-                exercise_id=ex_data["exercise_id"],
-                sets=ex_data["sets"],
-                reps=ex_data["reps"],
-                weight=ex_data["weight"],
-            )
-            db.session.add(we)
+    # Transaction: deleting the old WorkoutExercise rows and inserting the new
+    # set must be atomic. A partial failure here would leave the workout with
+    # no exercises (or a mix of old and new), which the UI treats as corrupt.
+    try:
+        if "exercises" in data:
+            WorkoutExercise.query.filter_by(workout_id=workout_id).delete()
+            for ex_data in data["exercises"]:
+                we = WorkoutExercise(
+                    workout_id=workout_id,
+                    exercise_id=ex_data["exercise_id"],
+                    sets=ex_data["sets"],
+                    reps=ex_data["reps"],
+                    weight=ex_data["weight"],
+                )
+                db.session.add(we)
 
-    db.session.commit()
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Failed to update workout: {str(e)}"}), 400
+
     return jsonify(workout.to_dict())
 
 

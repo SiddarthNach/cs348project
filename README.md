@@ -81,3 +81,16 @@ The React app will start at **http://localhost:3000**.
 ## Tech Stack
 - **Backend**: Python, Flask, Flask-SQLAlchemy, Flask-CORS, SQLite
 - **Frontend**: React 18, Vite, React Router v6, Axios
+
+---
+
+## AI Usage
+
+Per the CS348 AI policy, AI tools were used as a coding assistant under the "Allowed Uses" guidelines.
+
+- **Tool**: Claude Code (Anthropic), used through the VS Code extension.
+- **Tasks AI assisted with**: scaffolding the Flask + SQLAlchemy backend and the React frontend page structure; drafting the `database_design.md` and `stage3_writeup.md` documents; explaining concepts (e.g., SQLite locking-based isolation vs. Postgres MVCC).
+- **Verification**: ORM/transaction patterns were checked against the official Flask-SQLAlchemy and SQLAlchemy 2.x documentation. The `try/except + rollback` behavior was tested locally by triggering failing inserts and confirming no partial rows. Indexes were validated with `EXPLAIN QUERY PLAN` in the SQLite shell.
+- **Not used for**: fabricating results, generating code the author could not explain, or bypassing course learning objectives.
+
+See [stage3_writeup.md](stage3_writeup.md) for the full Stage 3 discussion (SQL injection, indexes, transactions, isolation levels).
