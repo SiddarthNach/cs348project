@@ -5,10 +5,16 @@ from datetime import date, datetime
 import os
 
 app = Flask(__name__)
-CORS(app)
+
+cors_origin = os.environ.get("CORS_ORIGIN", "*")
+CORS(app, origins=[o.strip() for o in cors_origin.split(",")] if cors_origin != "*" else "*")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{os.path.join(BASE_DIR, 'gym.db')}"
+db_url = os.environ.get("DATABASE_URL", f"sqlite:///{os.path.join(BASE_DIR, 'gym.db')}")
+# Render's Postgres URLs use the legacy `postgres://` scheme; SQLAlchemy 2.x requires `postgresql://`.
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+app.config["SQLALCHEMY_DATABASE_URI"] = db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
@@ -409,8 +415,14 @@ def get_report():
 # Entry point
 # ---------------------------------------------------------------------------
 
+# Run on import so gunicorn workers (which import the module rather than
+# executing it as __main__) initialize the schema and seed data on first boot.
+# create_all is a no-op when tables already exist, and seed_data guards on
+# User.query.count(), so this is safe to run on every worker startup.
+with app.app_context():
+    db.create_all()
+    seed_data()
+
+
 if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()
-        seed_data()
     app.run(debug=True, port=5001)
